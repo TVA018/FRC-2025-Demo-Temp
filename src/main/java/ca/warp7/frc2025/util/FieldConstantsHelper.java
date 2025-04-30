@@ -1,5 +1,6 @@
 package ca.warp7.frc2025.util;
 
+import static edu.wpi.first.units.Units.Inches;
 import static edu.wpi.first.units.Units.Meter;
 import static edu.wpi.first.units.Units.Meters;
 
@@ -40,6 +41,7 @@ public class FieldConstantsHelper {
     }
 
     public static Rotation2d getAngleToReefCenter(Pose2d pose) {
+        Translation2d center = AllianceFlipUtil.apply(FieldConstantsHelper.center);
         Rotation2d angle = new Rotation2d(center.getX() - pose.getX(), center.getY() - pose.getY());
 
         Logger.recordOutput("Field Constants/Pose from center of reef", new Pose2d(pose.getTranslation(), angle));
@@ -83,7 +85,7 @@ public class FieldConstantsHelper {
         pose = getclosestFace(pose);
 
         Transform2d transformer =
-                new Transform2d(new Translation2d(Drivetrain.LENGTH.div(2), Meters.zero()), Rotation2d.k180deg);
+                new Transform2d(new Translation2d(Drivetrain.LENGTH.div(2), Inches.of(2)), Rotation2d.k180deg);
 
         pose = pose.transformBy(transformer);
 

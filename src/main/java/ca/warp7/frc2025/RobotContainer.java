@@ -5,7 +5,6 @@
 package ca.warp7.frc2025;
 
 import ca.warp7.frc2025.Constants.Climber;
-import ca.warp7.frc2025.Constants.Elevator;
 import ca.warp7.frc2025.Constants.Intake;
 import ca.warp7.frc2025.FieldConstants.ReefLevel;
 import ca.warp7.frc2025.commands.DriveCommands;
@@ -14,7 +13,6 @@ import ca.warp7.frc2025.generated.TunerConstants;
 import ca.warp7.frc2025.subsystems.Vision.VisionConstants;
 import ca.warp7.frc2025.subsystems.Vision.VisionIO;
 import ca.warp7.frc2025.subsystems.Vision.VisionIOLimelight;
-import ca.warp7.frc2025.subsystems.Vision.VisionIOPhotonVisionSim;
 import ca.warp7.frc2025.subsystems.Vision.VisionSubsystem;
 import ca.warp7.frc2025.subsystems.climber.ClimberIO;
 import ca.warp7.frc2025.subsystems.climber.ClimberIOTalonFX;
@@ -53,6 +51,7 @@ import edu.wpi.first.wpilibj2.command.Command.InterruptionBehavior;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.WaitUntilCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
@@ -135,18 +134,17 @@ public class RobotContainer {
 
                 climber = new ClimberSubsystem(new ClimberIO() {});
 
-                vision = new VisionSubsystem(
-                        drive::addVisionMeasurement,
-                        new VisionIOPhotonVisionSim(
-                                VisionConstants.camera0Name,
-                                VisionConstants.robotToCamera0,
-                                () -> drive.getPose(),
-                                false),
-                        new VisionIOPhotonVisionSim(
-                                VisionConstants.camera1Name,
-                                VisionConstants.robotToCamera1,
-                                () -> drive.getPose(),
-                                false));
+                vision = new VisionSubsystem(drive::addVisionMeasurement);
+                // new VisionIOPhotonVisionSim(
+                //         VisionConstants.camera0Name,
+                //         VisionConstants.robotToCamera0,
+                //         () -> drive.getPose(),
+                //         false),
+                // new VisionIOPhotonVisionSim(
+                //         VisionConstants.camera1Name,
+                //         VisionConstants.robotToCamera1,
+                //         () -> drive.getPose(),
+                //         false));
                 break;
             case REPLAY:
             default:
@@ -170,8 +168,9 @@ public class RobotContainer {
                 () -> FieldConstantsHelper.faceToRobotPose(
                         FieldConstantsHelper.getclosestFace(drive.getPose()), side == Side.Left));
 
-        alignedToReef =
-                new Trigger(() -> driveToReef.withinTolerance(Units.inchesToMeters(5), Rotation2d.fromDegrees(5)));
+        alignedToReef = RobotModeTriggers.teleop()
+                .and(new Trigger(() -> !DriverStation.isAutonomousEnabled()
+                        && driveToReef.withinTolerance(Units.inchesToMeters(5), Rotation2d.fromDegrees(5))));
 
         alignToReef = driveToReef;
 
@@ -179,22 +178,21 @@ public class RobotContainer {
 
         alignToAlgae = driveToAlgae.withInterruptBehavior(InterruptionBehavior.kCancelIncoming);
 
-        alignedToAlgae =
-                new Trigger(() -> driveToAlgae.withinTolerance(Units.inchesToMeters(5), Rotation2d.fromDegrees(5)));
+        alignedToAlgae = RobotModeTriggers.teleop()
+                .and(new Trigger(() -> !DriverStation.isAutonomousEnabled()
+                        && driveToAlgae.withinTolerance(Units.inchesToMeters(5), Rotation2d.fromDegrees(5))));
 
-        Trigger toFarForExtend = new Trigger(() -> {
+        Trigger toFarForExtend = RobotModeTriggers.teleop().and(new Trigger(() -> {
             double distance =
                     FieldConstantsHelper.lengthFromCenterOfReef(drive.getPose()).magnitude();
-
             return 2.8 <= distance;
-        });
+        }));
 
-        Trigger toCloseForExtension = new Trigger(() -> {
+        Trigger toCloseForExtension = RobotModeTriggers.teleop().and(new Trigger(() -> {
             double distance =
                     FieldConstantsHelper.lengthFromCenterOfReef(drive.getPose()).magnitude();
-
-            return distance <= 2;
-        });
+            return distance <= 1.6;
+        }));
 
         superstructure = new Superstructure(
                 elevator,
@@ -205,7 +203,7 @@ public class RobotContainer {
                 driveController.rightBumper(),
                 alignedToReef,
                 alignedToAlgae,
-                driveController.a(),
+                new Trigger(() -> false),
                 toCloseForExtension,
                 toFarForExtend,
                 () -> FieldConstants.Reef.algaeLevels.get(FieldConstantsHelper.getclosestFace(drive.getPose())));
@@ -237,10 +235,11 @@ public class RobotContainer {
     }
 
     private void configureNamedCommands() {
-        Command Stow = elevator.setGoal(Elevator.STOW).andThen(new WaitUntilCommand(elevator.atSetpointTrigger()));
+        Command Stow =
+                elevator.setGoal(Constants.Elevator.STOW).andThen(new WaitUntilCommand(elevator.atSetpointTrigger()));
 
         NamedCommands.registerCommand("Stow", Stow);
-        NamedCommands.registerCommand("L4", elevator.setGoal(Elevator.L4));
+        NamedCommands.registerCommand("L4", elevator.setGoal(Constants.Elevator.L4));
         NamedCommands.registerCommand("Intake", intake.intake());
         NamedCommands.registerCommand("Outake", intake.outake());
     }
@@ -309,7 +308,6 @@ public class RobotContainer {
         driveController.povLeft().whileTrue(intake.runVoltsRoller(4));
 
         driveController.start().onTrue(drive.zeroPose());
-        driveController.back().onTrue(superstructure.forceState(SuperState.IDLE));
 
         driveController.povUp().onTrue(climber.climb());
         driveController.povDown().onTrue(climber.down());
@@ -321,6 +319,8 @@ public class RobotContainer {
                         .negate()
                         .or(driveController.rightBumper().negate()))
                 .whileTrue(driveReefAngleCenter);
+
+        driveController.a().onTrue(superstructure.forceState(SuperState.IDLE));
     }
 
     private void configureTuningBindings() {}

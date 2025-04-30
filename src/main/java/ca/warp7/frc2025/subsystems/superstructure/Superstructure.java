@@ -1,4 +1,7 @@
 package ca.warp7.frc2025.subsystems.superstructure;
+// test gyro
+// test l2-l3 with l4 and l3 coral
+// test distences for auto retract
 
 import static edu.wpi.first.units.Units.Meters;
 
@@ -17,6 +20,7 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.WaitCommand;
+import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +42,7 @@ public class Superstructure extends SubsystemBase {
         PRE_L4,
         SCORE_CORAL,
         SCORE_CORAL_L1,
+        SCORE_CORAL_L4,
         PRE_ALGAE_HIGH,
         PRE_ALGAE_LOW,
         INTAKE_ALGAE,
@@ -133,17 +138,24 @@ public class Superstructure extends SubsystemBase {
         this.algaeLevel = algaeLevel;
 
         for (var state : SuperState.values()) {
-            stateTriggers.put(state, new Trigger(() -> this.state == state && DriverStation.isEnabled()));
+            stateTriggers.put(
+                    state,
+                    new Trigger(() -> this.state == state && DriverStation.isEnabled() && DriverStation.isTeleop()));
         }
-
-        configureStateTransitionCommands();
 
         components[0] =
                 new Pose3d(new Translation3d(1, new Rotation3d(0, Units.degreesToRadians(-81), 0)), new Rotation3d());
         components[1] = new Pose3d();
+
+        configureStateTransitionCommands();
     }
 
     private void configureStateTransitionCommands() {
+        RobotModeTriggers.autonomous().and(elevator.atSetpoint(Elevator.L4)).onTrue(forceState(SuperState.PRE_L4));
+        RobotModeTriggers.autonomous()
+                .and(elevator.atSetpoint(Elevator.STOW))
+                .onTrue(forceState(SuperState.INTAKE_CORAL));
+
         // Idle
         stateTriggers
                 .get(SuperState.IDLE)
@@ -152,19 +164,23 @@ public class Superstructure extends SubsystemBase {
                 .and(() -> !isAlgaeLike())
                 .onTrue(intake.setVoltsRoller(0));
 
-        stateTriggers.get(SuperState.IDLE).and(intakeReq).onTrue(forceState(SuperState.INTAKE_CORAL));
+        stateTriggers
+                .get(SuperState.IDLE)
+                .or(() -> isAlgaeLike())
+                .and(intakeReq)
+                .onTrue(forceState(SuperState.INTAKE_CORAL));
 
         stateTriggers
                 .get(SuperState.IDLE)
+                .or(stateTriggers.get(SuperState.INTAKE_CORAL))
                 .and(preScoreAlgaeReq)
-                .and(elevatorTooClose.negate())
                 .and(() -> algaeLevel.get() == AlgaeLevel.HIGH)
                 .onTrue(forceState(SuperState.PRE_ALGAE_HIGH));
 
         stateTriggers
                 .get(SuperState.IDLE)
+                .or(stateTriggers.get(SuperState.INTAKE_CORAL))
                 .and(preScoreAlgaeReq)
-                .and(elevatorTooClose.negate())
                 .and(() -> algaeLevel.get() == AlgaeLevel.LOW)
                 .onTrue(forceState(SuperState.PRE_ALGAE_LOW));
 
@@ -232,6 +248,7 @@ public class Superstructure extends SubsystemBase {
                 .whileTrue(elevator.setGoal(Elevator.STOW))
                 .and(elevatorTooFar.negate())
                 .and(() -> reefLevel == ReefLevel.L4)
+                .and(preScoreCoralReq)
                 .onTrue(forceState(SuperState.PRE_L4));
 
         stateTriggers
@@ -239,6 +256,7 @@ public class Superstructure extends SubsystemBase {
                 .whileTrue(elevator.setGoal(Elevator.STOW))
                 .and(elevatorTooFar.negate())
                 .and(() -> reefLevel == ReefLevel.L3)
+                .and(preScoreCoralReq)
                 .onTrue(forceState(SuperState.PRE_L3));
 
         stateTriggers
@@ -246,6 +264,7 @@ public class Superstructure extends SubsystemBase {
                 .whileTrue(elevator.setGoal(Elevator.STOW))
                 .and(scoreReq)
                 .and(() -> reefLevel == ReefLevel.L2)
+                .and(preScoreCoralReq)
                 .onTrue(forceState(SuperState.PRE_L2));
 
         stateTriggers
@@ -253,19 +272,18 @@ public class Superstructure extends SubsystemBase {
                 .whileTrue(elevator.setGoal(Elevator.STOW))
                 .and(scoreReq)
                 .and(() -> reefLevel == ReefLevel.L1)
+                .and(preScoreCoralReq)
                 .onTrue(forceState(SuperState.PRE_L1));
 
         stateTriggers
                 .get(SuperState.PRE_L4)
-                .and(preScoreCoralReq)
                 .whileTrue(elevator.setGoal(Elevator.L4))
                 .and(elevator.atSetpoint())
                 .and(scoreReq)
-                .onTrue(forceState(SuperState.SCORE_CORAL));
+                .onTrue(forceState(SuperState.SCORE_CORAL_L4));
 
         stateTriggers
                 .get(SuperState.PRE_L3)
-                .and(preScoreCoralReq)
                 .whileTrue(elevator.setGoal(Elevator.L3))
                 .and(elevator.atSetpoint())
                 .and(scoreReq)
@@ -273,7 +291,6 @@ public class Superstructure extends SubsystemBase {
 
         stateTriggers
                 .get(SuperState.PRE_L2)
-                .and(preScoreCoralReq)
                 .whileTrue(elevator.setGoal(Elevator.L2))
                 .and(elevator.atSetpoint())
                 .and(scoreReq)
@@ -281,7 +298,6 @@ public class Superstructure extends SubsystemBase {
 
         stateTriggers
                 .get(SuperState.PRE_L1)
-                .and(preScoreCoralReq)
                 .whileTrue(elevator.setGoal(Elevator.L1))
                 .and(elevator.atSetpoint())
                 .and(scoreReq)
@@ -291,33 +307,46 @@ public class Superstructure extends SubsystemBase {
                 .get(SuperState.PRE_L4)
                 .or(stateTriggers.get(SuperState.PRE_L3))
                 .and(elevatorTooClose.negate())
-                .and(stowReq)
+                .and(elevatorTooFar)
                 .onTrue(forceState(SuperState.READY_CORAL));
 
         stateTriggers
                 .get(SuperState.PRE_L2)
                 .or(stateTriggers.get(SuperState.PRE_L1))
-                .and(stowReq)
+                .and(elevatorTooClose.negate())
+                .and(elevatorTooFar)
                 .onTrue(forceState(SuperState.READY_CORAL));
 
         stateTriggers
                 .get(SuperState.SCORE_CORAL)
+                .or(stateTriggers.get(SuperState.SCORE_CORAL_L1))
+                .or(stateTriggers.get(SuperState.SCORE_CORAL_L4))
                 .and(scoreReq)
                 .onTrue(leds.setBlinkingCmd(SparkColor.GREEN, SparkColor.BLACK, 5))
-                .whileTrue(intake.outake())
                 .and(intake.notHoldingCoral())
                 .onTrue(leds.setBlinkingCmd(SparkColor.GREEN, SparkColor.BLACK, 20));
 
+        stateTriggers.get(SuperState.SCORE_CORAL_L4).whileTrue(intake.outake());
+
+        stateTriggers.get(SuperState.SCORE_CORAL).whileTrue(intake.outake(-10));
+
         stateTriggers
-                .get(SuperState.SCORE_CORAL)
-                .and(() -> lastState == SuperState.PRE_L3 || lastState == SuperState.PRE_L4)
+                .get(SuperState.SCORE_CORAL_L4)
                 .and(elevatorTooClose.negate())
                 .and(intake.notHoldingCoral())
                 .onTrue(forceState(SuperState.IDLE));
 
         stateTriggers
                 .get(SuperState.SCORE_CORAL)
-                .and(() -> lastState != SuperState.PRE_L3 && lastState != SuperState.PRE_L4)
+                .and(() -> lastState == SuperState.PRE_L2)
+                .and(intake.notHoldingCoral())
+                .and(elevatorTooClose.negate())
+                .onTrue(forceState(SuperState.IDLE));
+
+        stateTriggers
+                .get(SuperState.SCORE_CORAL)
+                .and(() -> lastState == SuperState.PRE_L3)
+                .and(elevatorTooClose.negate())
                 .and(intake.notHoldingCoral())
                 .onTrue(forceState(SuperState.IDLE));
 
@@ -325,9 +354,7 @@ public class Superstructure extends SubsystemBase {
                 .get(SuperState.SCORE_CORAL_L1)
                 .and(elevator.atSetpoint())
                 .and(scoreReq)
-                .whileTrue(intake.runVoltsRoller(-10)
-                        .until(intake.middleSensorTrigger())
-                        .andThen(intake.setTorque(() -> l1Torque.get())));
+                .whileTrue(intake.runVoltsRoller(4));
 
         stateTriggers
                 .get(SuperState.SCORE_CORAL_L1)

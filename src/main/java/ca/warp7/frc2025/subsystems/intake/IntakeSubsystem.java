@@ -14,6 +14,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.PrintCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.WaitCommand;
+import edu.wpi.first.wpilibj2.command.WaitUntilCommand;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import java.util.function.DoubleSupplier;
 import org.littletonrobotics.junction.AutoLogOutput;
@@ -107,7 +108,7 @@ public class IntakeSubsystem extends SubsystemBase implements PitCheckable {
                                 .andThen(setBottomSensor(true))
                                 .andThen(new PrintCommand("Simulating intake"))
                         : Commands.none())
-                .andThen(runVoltsRoller(-6).until(bottomSensorTrigger()));
+                .andThen(runVoltsRoller(-4).until(bottomSensorTrigger()));
     }
 
     public Command outake() {
@@ -121,7 +122,10 @@ public class IntakeSubsystem extends SubsystemBase implements PitCheckable {
                                 .andThen(setBottomSensor(false))
                                 .andThen(new PrintCommand("Simulating outake"))
                         : Commands.none())
-                .andThen(runVoltsRoller(volts).until(notHoldingCoral()));
+                .andThen(runVoltsRoller(volts)
+                        .raceWith(new WaitCommand(0.3)
+                                .andThen(new WaitUntilCommand(
+                                        bottomSensorTrigger().negate()))));
     }
 
     public Trigger holdingCoral() {
