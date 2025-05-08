@@ -1,5 +1,6 @@
 package ca.warp7.frc2025.subsystems.intake;
 
+import ca.warp7.frc2025.Constants;
 import ca.warp7.frc2025.Robot;
 import ca.warp7.frc2025.util.LoggedTunableNumber;
 import ca.warp7.frc2025.util.pitchecks.PitCheckable;
@@ -67,12 +68,17 @@ public class IntakeSubsystem extends SubsystemBase implements PitCheckable {
 
     @AutoLogOutput
     public Trigger bottomSensorTrigger() {
-        return new Trigger(() -> MathUtil.isNear(topDistanceToCoral, topSensorInputs.objectDistanceMM, 50));
+        // return new Trigger(() -> MathUtil.isNear(topDistanceToCoral, topSensorInputs.objectDistanceMM, 50));
+        return Constants.coral
+                ? new Trigger(() -> MathUtil.isNear(topDistanceToCoral, topSensorInputs.objectDistanceMM, 50))
+                : new Trigger(() -> topSensorInputs.objectDistanceMM <= 270);
     }
 
     @AutoLogOutput
     public Trigger middleSensorTrigger() {
-        return new Trigger(() -> MathUtil.isNear(frontTopDistanceToCoral, frontSensorInputs.objectDistanceMM, 30));
+        return Constants.coral
+                ? new Trigger(() -> MathUtil.isNear(frontTopDistanceToCoral, frontSensorInputs.objectDistanceMM, 30))
+                : new Trigger(() -> frontSensorInputs.objectDistanceMM <= 200);
     }
 
     @AutoLogOutput
@@ -108,7 +114,7 @@ public class IntakeSubsystem extends SubsystemBase implements PitCheckable {
                                 .andThen(setBottomSensor(true))
                                 .andThen(new PrintCommand("Simulating intake"))
                         : Commands.none())
-                .andThen(runVoltsRoller(-4).until(bottomSensorTrigger()));
+                .andThen(runVoltsRoller(-1).until(bottomSensorTrigger()));
     }
 
     public Command outake() {
@@ -133,7 +139,7 @@ public class IntakeSubsystem extends SubsystemBase implements PitCheckable {
     }
 
     public Trigger notHoldingCoral() {
-        return middleSensorTrigger().negate().and(bottomSensorTrigger().negate());
+        return middleSensorTrigger().negate().or(bottomSensorTrigger().negate());
     }
 
     public Command setTorque() {

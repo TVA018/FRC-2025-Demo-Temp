@@ -8,7 +8,6 @@ import ca.warp7.frc2025.Constants.Climber;
 import ca.warp7.frc2025.Constants.Intake;
 import ca.warp7.frc2025.FieldConstants.ReefLevel;
 import ca.warp7.frc2025.commands.DriveCommands;
-import ca.warp7.frc2025.commands.DriveToPose;
 import ca.warp7.frc2025.generated.TunerConstants;
 import ca.warp7.frc2025.subsystems.Vision.VisionConstants;
 import ca.warp7.frc2025.subsystems.Vision.VisionIO;
@@ -40,18 +39,14 @@ import ca.warp7.frc2025.util.FieldConstantsHelper;
 import ca.warp7.frc2025.util.pitchecks.PitChecker;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.auto.NamedCommands;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.MatchType;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Command.InterruptionBehavior;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.WaitUntilCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
@@ -74,11 +69,6 @@ public class RobotContainer {
 
     // Dashboard inputs
     private final LoggedDashboardChooser<Command> autoChooser;
-
-    public Trigger alignedToReef;
-    private Command alignToReef;
-    private Trigger alignedToAlgae;
-    private Command alignToAlgae;
 
     enum Side {
         Left,
@@ -163,49 +153,16 @@ public class RobotContainer {
         leds = new LEDSubsystem(2);
         leds.setToDefault();
 
-        DriveToPose driveToReef = new DriveToPose(
-                drive,
-                () -> FieldConstantsHelper.faceToRobotPose(
-                        FieldConstantsHelper.getclosestFace(drive.getPose()), side == Side.Left));
-
-        alignedToReef = RobotModeTriggers.teleop()
-                .and(new Trigger(() -> !DriverStation.isAutonomousEnabled()
-                        && driveToReef.withinTolerance(Units.inchesToMeters(5), Rotation2d.fromDegrees(5))));
-
-        alignToReef = driveToReef;
-
-        DriveToPose driveToAlgae = new DriveToPose(drive, () -> FieldConstantsHelper.getAlgaeGoalPose(drive.getPose()));
-
-        alignToAlgae = driveToAlgae.withInterruptBehavior(InterruptionBehavior.kCancelIncoming);
-
-        alignedToAlgae = RobotModeTriggers.teleop()
-                .and(new Trigger(() -> !DriverStation.isAutonomousEnabled()
-                        && driveToAlgae.withinTolerance(Units.inchesToMeters(5), Rotation2d.fromDegrees(5))));
-
-        Trigger toFarForExtend = RobotModeTriggers.teleop().and(new Trigger(() -> {
-            double distance =
-                    FieldConstantsHelper.lengthFromCenterOfReef(drive.getPose()).magnitude();
-            return 2.8 <= distance;
-        }));
-
-        Trigger toCloseForExtension = RobotModeTriggers.teleop().and(new Trigger(() -> {
-            double distance =
-                    FieldConstantsHelper.lengthFromCenterOfReef(drive.getPose()).magnitude();
-            return distance <= 1.6;
-        }));
-
         superstructure = new Superstructure(
                 elevator,
                 intake,
                 leds,
                 driveController.y().or(driveController.x()),
                 driveController.rightTrigger(),
+                driveController.leftTrigger(),
                 driveController.rightBumper(),
-                alignedToReef,
-                alignedToAlgae,
+                driveController.leftBumper(),
                 new Trigger(() -> false),
-                toCloseForExtension,
-                toFarForExtend,
                 () -> FieldConstants.Reef.algaeLevels.get(FieldConstantsHelper.getclosestFace(drive.getPose())));
 
         configureNamedCommands();
@@ -257,34 +214,11 @@ public class RobotContainer {
                 () -> -driveController.getLeftX(),
                 () -> -driveController.getRightX());
 
-        Command driveToHumanPlayer = new DriveToPose(
-                        drive,
-                        () -> FieldConstantsHelper.stationToRobot(
-                                FieldConstantsHelper.getClosestStation(drive.getPose())))
-                // () -> drive.getPose(),
-                // () -> new Translation2d(0.3, drive.getRotation()),
-                // () -> 0)
-                .withInterruptBehavior(InterruptionBehavior.kCancelIncoming);
-
-        Command driveReefAngleCenter = DriveCommands.joystickDriveAtAngle(
-                drive,
-                () -> -driveController.getLeftY(),
-                () -> -driveController.getLeftX(),
-                () -> FieldConstantsHelper.getAngleToReefCenter(drive.getPose()));
-
-        Command intakeAngle = DriveCommands.joystickDriveAtAngle(
-                drive,
-                () -> -driveController.getLeftY(),
-                () -> -driveController.getLeftX(),
-                () -> FieldConstantsHelper.getClosestStation(drive.getPose())
-                        .getRotation()
-                        .rotateBy(Rotation2d.k180deg));
-
         Command scoreLeft = Commands.runOnce(() -> side = Side.Left);
         Command scoreRight = Commands.runOnce(() -> side = Side.Right);
 
-        operatorController.y().onTrue(superstructure.setLevel(ReefLevel.L4));
-        operatorController.x().onTrue(superstructure.setLevel(ReefLevel.L3));
+        operatorController.y().onTrue(superstructure.setLevel(ReefLevel.L2));
+        operatorController.x().onTrue(superstructure.setLevel(ReefLevel.L2));
         operatorController.b().onTrue(superstructure.setLevel(ReefLevel.L2));
         operatorController.a().onTrue(superstructure.setLevel(ReefLevel.L1));
 
@@ -295,30 +229,13 @@ public class RobotContainer {
 
         drive.setDefaultCommand(driveCommand);
 
-        driveController.rightTrigger().and(alignedToAlgae.negate()).whileTrue(alignToReef);
-        driveController
-                .rightBumper()
-                .and(superstructure.holdingAlgae().negate())
-                .whileTrue(alignToAlgae);
-
-        driveController.y().and(superstructure.canIntake()).whileTrue(driveToHumanPlayer);
-        driveController.x().and(driveController.y().negate()).whileTrue(intakeAngle);
-
         driveController.povRight().whileTrue(intake.runVoltsRoller(-10));
-        driveController.povLeft().whileTrue(intake.runVoltsRoller(4));
+        driveController.povLeft().whileTrue(intake.runVoltsRoller(8));
 
         driveController.start().onTrue(drive.zeroPose());
 
         driveController.povUp().onTrue(climber.climb());
         driveController.povDown().onTrue(climber.down());
-
-        driveController
-                .leftTrigger()
-                .and(driveController
-                        .rightTrigger()
-                        .negate()
-                        .or(driveController.rightBumper().negate()))
-                .whileTrue(driveReefAngleCenter);
 
         driveController.a().onTrue(superstructure.forceState(SuperState.IDLE));
     }
