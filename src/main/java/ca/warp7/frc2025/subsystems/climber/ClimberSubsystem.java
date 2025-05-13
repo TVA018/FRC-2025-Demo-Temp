@@ -61,7 +61,7 @@ public class ClimberSubsystem extends SubsystemBase {
     }
 
     public Command stow() {
-        return setPivotServoPosition(1)
+        return setPivotServoPosition(0)
                 .andThen(new WaitCommand(1))
                 .andThen(setNormalGains())
                 .andThen(setPivotPosition(Climber.STOW));

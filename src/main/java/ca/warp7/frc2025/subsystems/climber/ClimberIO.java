@@ -20,7 +20,7 @@ public interface ClimberIO {
     public default void setPivotVoltage(final double volts) {}
 
     public default void setServoPosition(final double position) {}
-
+    //
     public default void setPivotSpeed(final double speed) {}
 
     public default void setPivotPosition(final Rotation2d position) {}

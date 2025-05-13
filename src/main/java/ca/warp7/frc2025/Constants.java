@@ -90,7 +90,7 @@ public final class Constants {
         public static final int INTAKE_ID = 58;
         public static final int Servo_PWM = 1;
 
-        public static final Rotation2d DOWN = Rotation2d.fromDegrees(90);
+        public static final Rotation2d DOWN = Rotation2d.fromDegrees(110);
         public static final Rotation2d CLIMB = Rotation2d.fromDegrees(-10);
         public static final Rotation2d STOW = Rotation2d.kZero;
 
