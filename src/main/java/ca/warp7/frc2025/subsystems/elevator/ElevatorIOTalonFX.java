@@ -121,6 +121,7 @@ public class ElevatorIOTalonFX implements ElevatorIO {
 
     @Override
     public void setPosition(double meters) {
+        System.out.println(meters);
         talon.setControl(positionVoltageOut.withPosition(meters));
     }
 
